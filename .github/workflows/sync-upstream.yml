@@ -21,11 +21,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Merge latest upstream changes
+      - name: Sync source and build card catalog
         run: |
           git remote add upstream https://github.com/xenia-manager/x360db.git
           git fetch upstream main
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git merge --no-edit upstream/main
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const games = JSON.parse(fs.readFileSync('games.json', 'utf8'));
+          const cards = games.map(({ id, title, genre, boxart }) => ({
+            id,
+            title: title.trim(),
+            genre: genre || [],
+            boxart: boxart || null
+          }));
+          const json = JSON.stringify(cards);
+          fs.writeFileSync('games-index.json', json);
+          console.log('Built ' + cards.length + ' cards (' + Buffer.byteLength(json) + ' bytes)');
+          NODE
+
+          git add games-index.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: refresh compact game catalog"
+          fi
           git push origin HEAD:main
